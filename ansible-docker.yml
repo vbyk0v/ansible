@@ -1,14 +1,12 @@
 ---
-# Variables for Playbook configuration
-vars:
-  image_name: your_image:latest  # Name and tag of the Docker image to use
-  container_name: my_container   # Name of the container to create
-  network_mode: host             # Network mode (host: container uses host's network)
-  container_port: 8080           # Port the application inside the container listens on
-
 - name: Deploy a Docker container from a local image
   hosts: remote_host  # Specify the group or host from the inventory file
   become: true        # Root privileges are required to work with Docker
+  vars:
+    image_name: your_image:latest  # Name and tag of the Docker image to use
+    container_name: my_container   # Name of the container to create
+    network_mode: host             # Network mode (host: container uses host's network)
+    container_port: 8080           # Port the application inside the container listens on
   tasks:
     # Ensure Docker is installed
     - name: 1. Ensure Docker is installed
@@ -17,24 +15,14 @@ vars:
         state: present  # Ensure the package is installed
 
     # Verify the Docker image exists on the remote host
-    - name: 2. Debug Docker image name
-      ansible.builtin.debug:
-        msg: "Docker image name: {{ image_name }}"
-
-    - name: 3. Verify the Docker image exists
+    - name: 2. Verify the Docker image exists
       ansible.builtin.command:
         cmd: docker images -q "{{ image_name }}"
       register: docker_image_check  # Save the result of the check
       failed_when: docker_image_check.stdout == ""  # Fail if stdout is empty
 
     # Run the Docker container
-    - name: 4. Debug container name and image
-      ansible.builtin.debug:
-        msg:
-          - "Container name: {{ container_name }}"
-          - "Docker image: {{ image_name }}"
-
-    - name: 5. Run the Docker container and save its ID
+    - name: 3. Run the Docker container and save its ID
       ansible.builtin.shell: >
         docker run -d
         --name "{{ container_name }}"
@@ -44,43 +32,21 @@ vars:
       changed_when: "'Error' not in docker_run_output.stderr"  # Ensure no errors occurred
 
     # Save the container ID to a file
-    - name: 6. Debug container ID
-      ansible.builtin.debug:
-        msg: "Container ID: {{ docker_run_output.stdout.strip() }}"
-
-    - name: 7. Save the container ID to a file
+    - name: 4. Save the container ID to a file
       ansible.builtin.copy:
         content: "{{ docker_run_output.stdout.strip() }}"  # Extract the container ID
         dest: "/var/tmp/{{ container_name }}.id"  # Specify the file path for saving
 
     # Wait until the container is accessible on the specified port
-    - name: 8. Debug wait_for variables
-      ansible.builtin.debug:
-        msg:
-          - "Host: {{ ansible_host }}"
-          - "Port: {{ container_port }}"
-
-    - name: 9. Wait until the container is accessible
+    - name: 5. Wait until the container is accessible
       ansible.builtin.wait_for:
         host: "{{ ansible_host }}"  # Host where the container is running
         port: "{{ container_port }}"  # Port the application inside the container listens on
         timeout: 60  # Maximum wait time (in seconds)
 
     # Check if the container is responding to requests
-    - name: 10. Debug health check URL and port
-      ansible.builtin.debug:
-        msg:
-          - "Health check URL: http://{{ ansible_host }}:{{ container_port }}/health"
-
-    - name: 11. Verify the container is running and responding
+    - name: 6. Verify the container is running and responding
       ansible.builtin.uri:
         url: "http://{{ ansible_host }}:{{ container_port }}/health"  # Health check URL
         status_code: 200  # Expected HTTP response status code
       register: container_health_check  # Capture the response
-
-    - name: 12. Debug container health check
-      ansible.builtin.debug:
-        msg:
-          - "Health check URL: http://{{ ansible_host }}:{{ container_port }}/health"
-          - "Expected status code: 200"
-          - "Actual response: {{ container_health_check }}"
